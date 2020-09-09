@@ -11,14 +11,18 @@ namespace LeagueReplayLibrary.Structs
         [FieldOffset(0)] internal ushort headerLength;
         [FieldOffset(2)] internal uint fileLength;
         [FieldOffset(6)] internal ulong gameId;
-        [FieldOffset(14)] internal ushort chunkCount;
-        [FieldOffset(16)] internal ushort keyframeCount;
-        [FieldOffset(18)] internal ushort chunkHeaderLength;
-        [FieldOffset(20)] internal ushort keyframekHeaderLength;
-        [FieldOffset(22)] internal uint chunkHeaderOffset;
-        [FieldOffset(26)] internal uint keyframeHeaderOffset;
-        [FieldOffset(30)] internal ushort encryptionKeyLength;
-        [FieldOffset(32)] internal string encryptionKey;
+        [FieldOffset(14)] internal ushort region;
+        [FieldOffset(16)] internal ushort endStartupChunkId;
+        [FieldOffset(18)] internal ushort startGameChunkId;
+        [FieldOffset(20)] internal ushort endGameChunkId;
+        [FieldOffset(22)] internal ushort chunkCount;
+        [FieldOffset(24)] internal ushort keyframeCount;
+        [FieldOffset(26)] internal ushort chunkHeaderLength;
+        [FieldOffset(28)] internal ushort keyframekHeaderLength;
+        [FieldOffset(30)] internal uint chunkHeaderOffset;
+        [FieldOffset(34)] internal uint keyframeHeaderOffset;
+        [FieldOffset(38)] internal ushort encryptionKeyLength;
+        [FieldOffset(40)] internal string encryptionKey;
     }
 
     [StructLayout(LayoutKind.Explicit, Size = 10)]

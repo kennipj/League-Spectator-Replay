@@ -9,4 +9,11 @@ namespace LeagueReplayLibrary
         internal ushort id;
         internal byte[] data;
     }
+
+    internal class KeyframeInfo
+    {
+        internal uint nextChunkId;
+        internal ushort id;
+        internal string receivedTime;
+    }
 }

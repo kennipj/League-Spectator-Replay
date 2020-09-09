@@ -2,6 +2,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
@@ -40,6 +41,12 @@ namespace LeagueReplayLibrary
         internal static async Task<Replay> UnpackReplay(string inpath)
         {
             var fs = new FileStream(inpath, FileMode.Open);
+
+            var magic = new byte[4];
+            await fs.ReadAsync(magic);
+            if (magic != new byte[4] { 0x4C, 0x53, 0x52, 0x50 }) //LSRP
+                return null;
+
             var header = UnpackHeader(fs);
             var dataHeaders = UnpackDataHeaders(fs, header);
 
@@ -50,10 +57,11 @@ namespace LeagueReplayLibrary
 
             var replay = new Replay()
             {
-                Chunks = chunks.Result,
-                KeyFrames = keyframes.Result,
-                encryptionKey = header.encryptionKey,
-                gameId = header.gameId
+                Region = (Region)header.region,
+                Chunks = chunks.Result.OrderBy(x => x.id).ToList(),
+                KeyFrames = keyframes.Result.OrderBy(x => x.id).ToList(),
+                eKey = header.encryptionKey,
+                GameId = header.gameId
             };
 
             return replay;
@@ -95,7 +103,7 @@ namespace LeagueReplayLibrary
             fs.Read(sizeBuffer);
 
             var buffer = new byte[BitConverter.ToUInt16(sizeBuffer)];
-            fs.Seek(0, SeekOrigin.Begin);
+            fs.Seek(4, SeekOrigin.Begin);
             fs.Read(buffer);
 
             return BytesToStruct<Header>(buffer);
@@ -103,7 +111,7 @@ namespace LeagueReplayLibrary
 
         private static (List<DataHeader> chunkHeaders, List<DataHeader> keyframeHeaders) UnpackDataHeaders(FileStream fs, Header header)
         {
-            fs.Seek(header.headerLength, SeekOrigin.Begin);
+            fs.Seek(header.headerLength + 4, SeekOrigin.Begin);
             var chunkHeaders = new List<DataHeader>();
             var keyframeHeaders = new List<DataHeader>();
             var buffer = new byte[10];
@@ -134,7 +142,11 @@ namespace LeagueReplayLibrary
 
         internal static async Task PackReplay(Replay replay, string outpath)
         {
-            var fs = new FileStream(outpath, FileMode.CreateNew);
+            var dir = Directory.GetParent(outpath);
+            Directory.CreateDirectory(dir.FullName);
+            var fs = new FileStream(@$"{outpath}.lsrp", FileMode.CreateNew);
+            await fs.WriteAsync(new byte[4] { 0x4C, 0x53, 0x52, 0x50 }); // LSRP
+
             var headers = PackHeaders(replay);
             var chunkData = PackChunkData(replay.Chunks);
             var keyframeData = PackKeyframeData(replay.KeyFrames);
@@ -150,8 +162,8 @@ namespace LeagueReplayLibrary
         {
             var memStream = new MemoryStream();
 
-            var keyLength = (ushort)Encoding.ASCII.GetByteCount(replay.encryptionKey);
-            var headerLength = (ushort)(keyLength + 32);
+            var keyLength = (ushort)Encoding.ASCII.GetByteCount(replay.eKey);
+            var headerLength = (ushort)(keyLength + 40);
             var chunkHeaderLength = (ushort)(headerLength + (replay.Chunks.Count * 10));
             var keyframeHeaderLength = (ushort)(headerLength + chunkHeaderLength + (replay.KeyFrames.Count * 10));
 
@@ -159,8 +171,12 @@ namespace LeagueReplayLibrary
             {
                 chunkCount = (ushort)replay.Chunks.Count,
                 keyframeCount = (ushort)replay.KeyFrames.Count,
-                gameId = replay.gameId,
-                encryptionKey = replay.encryptionKey,
+                gameId = replay.GameId,
+                region = (ushort) replay.Region,
+                endStartupChunkId = (ushort)replay.ChunkInfo.endStartupChunkId,
+                startGameChunkId = (ushort)replay.ChunkInfo.startGameChunkId,
+                endGameChunkId = (ushort)replay.ChunkInfo.endGameChunkId,
+                encryptionKey = replay.eKey,
                 encryptionKeyLength = keyLength,
                 headerLength = headerLength,
                 chunkHeaderLength = chunkHeaderLength,
