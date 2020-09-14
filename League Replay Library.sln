@@ -7,8 +7,6 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "League Replay Library", "Le
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Replay Downloader", "Replay Downloader\Replay Downloader.csproj", "{12494BD9-A63B-4C1B-BE7E-1BB137722016}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ReplayConverter", "ReplayConverter\ReplayConverter.csproj", "{1C4480A6-35D0-4B6B-BB67-15B7B28AE86B}"
-EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Replay Server", "Replay Server\Replay Server.csproj", "{BA3813F2-6C34-4DBC-940F-00F185D67661}"
 EndProject
 Global
@@ -25,10 +23,6 @@ Global
 		{12494BD9-A63B-4C1B-BE7E-1BB137722016}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{12494BD9-A63B-4C1B-BE7E-1BB137722016}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{12494BD9-A63B-4C1B-BE7E-1BB137722016}.Release|Any CPU.Build.0 = Release|Any CPU
-		{1C4480A6-35D0-4B6B-BB67-15B7B28AE86B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{1C4480A6-35D0-4B6B-BB67-15B7B28AE86B}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{1C4480A6-35D0-4B6B-BB67-15B7B28AE86B}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{1C4480A6-35D0-4B6B-BB67-15B7B28AE86B}.Release|Any CPU.Build.0 = Release|Any CPU
 		{BA3813F2-6C34-4DBC-940F-00F185D67661}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{BA3813F2-6C34-4DBC-940F-00F185D67661}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{BA3813F2-6C34-4DBC-940F-00F185D67661}.Release|Any CPU.ActiveCfg = Release|Any CPU
