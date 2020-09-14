@@ -2,8 +2,6 @@
 using LeagueReplayLibrary;
 using ReplayDownloader;
 using System;
-using System.Management;
-using System.Threading.Tasks;
 
 namespace Replay_Downloader
 {
@@ -16,7 +14,7 @@ namespace Replay_Downloader
                       arguments.GameId != default &&
                       arguments.Region != default)
             {
-                var replay = Replay.DownloadReplay(Enum.Parse<Region>(arguments.Region), arguments.GameId, arguments.eKey).GetAwaiter().GetResult();
+                var replay = Replay.DownloadReplay(new GameKey() { GameId = arguments.GameId, PlatformId = Enum.Parse<Region>(arguments.Region) }, arguments.eKey).GetAwaiter().GetResult();
                 if (!string.IsNullOrEmpty(arguments.Output))
                     replay.PackReplay(arguments.Output).GetAwaiter().GetResult();
                 else

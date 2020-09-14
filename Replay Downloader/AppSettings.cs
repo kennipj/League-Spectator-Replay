@@ -1,7 +1,4 @@
 ﻿using EntryPoint;
-using System;
-using System.Collections.Generic;
-using System.Text;
 
 namespace ReplayDownloader
 {
@@ -10,7 +7,7 @@ namespace ReplayDownloader
     {
         public AppSettings() : base("ReplayDownloader") { }
 
-        [Option(ShortName: 'k', LongName: "key")]
+        [Option(ShortName: 'e', LongName: "key")]
         public string eKey { get; set; }
 
         [Option(ShortName: 'g', LongName: "id")]

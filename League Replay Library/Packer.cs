@@ -3,179 +3,154 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
 
 namespace LeagueReplayLibrary
 {
-    internal class Packer
+    public class Packer
     {
-        private static byte[] StructToBytes(object obj)
-        {
-            int size = Marshal.SizeOf(obj);
-            byte[] arr = new byte[size];
-
-            IntPtr ptr = Marshal.AllocHGlobal(size);
-            Marshal.StructureToPtr(obj, ptr, true);
-            Marshal.Copy(ptr, arr, 0, size);
-            Marshal.FreeHGlobal(ptr);
-            return arr;
-        }
-
-        private static T BytesToStruct<T>(byte[] bytes) where T : new()
-        {
-            var str = new T();
-
-            int size = Marshal.SizeOf(str);
-            IntPtr ptr = Marshal.AllocHGlobal(size);
-
-            Marshal.Copy(bytes, 0, ptr, size);
-
-            str = (T)Marshal.PtrToStructure(ptr, typeof(T));
-            Marshal.FreeHGlobal(ptr);
-
-            return str;
-        }
 
         internal static async Task<Replay> UnpackReplay(string inpath)
         {
-            var fs = new FileStream(inpath, FileMode.Open);
-
-            var magic = new byte[4];
-            await fs.ReadAsync(magic);
-            if (magic != new byte[4] { 0x4C, 0x53, 0x52, 0x50 }) //LSRP
-                return null;
-
-            var header = UnpackHeader(fs);
-            var dataHeaders = UnpackDataHeaders(fs, header);
-
-            var chunks = UnpackChunks(fs, dataHeaders.chunkHeaders);
-            var keyframes = UnpackKeyframes(fs, dataHeaders.keyframeHeaders);
-
-            await Task.WhenAll(chunks, keyframes);
-
-            var replay = new Replay()
+            using (var fs = new FileStream(inpath, FileMode.Open))
             {
-                Region = (Region)header.region,
-                Chunks = chunks.Result.OrderBy(x => x.id).ToList(),
-                KeyFrames = keyframes.Result.OrderBy(x => x.id).ToList(),
-                eKey = header.encryptionKey,
-                GameId = header.gameId
-            };
+                var magic = new byte[4];
+                await fs.ReadAsync(magic);
 
-            return replay;
+                if (BitConverter.ToUInt32(magic) != BitConverter.ToUInt32(new byte[4] { 0x4C, 0x53, 0x52, 0x50 })) //LSRP
+                    return null;
+
+                var header = await UnpackHeader(fs);
+                var dataHeaders = await UnpackDataHeaders(fs, header);
+
+                var chunks = await UnpackChunks(fs, dataHeaders.chunkHeaders);
+                var keyframes = await UnpackKeyframes(fs, dataHeaders.keyframeHeaders);
+
+                var replay = new Replay()
+                {
+                    GameKey = new GameKey() { PlatformId = (Region)header.region, GameId = header.gameId },
+                    Chunks = chunks.OrderBy(x => x.id).ToList(),
+                    KeyFrames = keyframes.OrderBy(x => x.id).ToList(),
+                    eKey = header.encryptionKey,
+                    EndStartupChunkId = header.endStartupChunkId,
+                    StartGameChunkId = header.startGameChunkId,
+                    EndGameChunkId = header.endGameChunkId,
+                    GameEnded = true,
+                };
+
+                return replay;
+            }
         }
 
-        private static async Task<List<Keyframe>> UnpackKeyframes(FileStream fs, List<DataHeader> keyframeHeaders)
+        private static async Task<List<Payload>> UnpackKeyframes(FileStream fs, List<PayloadHeader> keyframeHeaders)
         {
-            var keyframes = new List<Keyframe>();
+            var keyframes = new List<Payload>();
 
-            foreach(var header in keyframeHeaders)
+            foreach (var header in keyframeHeaders)
             {
                 var buffer = new byte[header.size];
                 fs.Seek(header.offset, SeekOrigin.Begin);
                 await fs.ReadAsync(buffer);
-                keyframes.Add(new Keyframe() { data = buffer, id = header.id });
+                keyframes.Add(new Payload() { data = buffer, id = header.id });
             }
 
             return keyframes;
         }
 
-        private static async Task<List<Chunk>> UnpackChunks(FileStream fs, List<DataHeader> chunkHeaders)
+        private static async Task<List<Payload>> UnpackChunks(FileStream fs, List<PayloadHeader> chunkHeaders)
         {
-            var chunks = new List<Chunk>();
+            var chunks = new List<Payload>();
 
             foreach (var header in chunkHeaders)
             {
                 var buffer = new byte[header.size];
                 fs.Seek(header.offset, SeekOrigin.Begin);
                 await fs.ReadAsync(buffer);
-                chunks.Add(new Chunk() { data = buffer, id = header.id });
+                chunks.Add(new Payload() { data = buffer, id = header.id });
             }
 
             return chunks;
         }
 
-        internal static Header UnpackHeader(FileStream fs)
+        public static async Task<Header> UnpackHeader(FileStream fs)
         {
+            fs.Seek(4, SeekOrigin.Begin);
             var sizeBuffer = new byte[2];
-            fs.Read(sizeBuffer);
+            await fs.ReadAsync(sizeBuffer);
 
             var buffer = new byte[BitConverter.ToUInt16(sizeBuffer)];
             fs.Seek(4, SeekOrigin.Begin);
-            fs.Read(buffer);
+            await fs.ReadAsync(buffer);
 
-            return BytesToStruct<Header>(buffer);
+            return Header.FromBytes(buffer);
         }
 
-        private static (List<DataHeader> chunkHeaders, List<DataHeader> keyframeHeaders) UnpackDataHeaders(FileStream fs, Header header)
+        private static async Task<(List<PayloadHeader> chunkHeaders, List<PayloadHeader> keyframeHeaders)> UnpackDataHeaders(FileStream fs, Header header)
         {
             fs.Seek(header.headerLength + 4, SeekOrigin.Begin);
-            var chunkHeaders = new List<DataHeader>();
-            var keyframeHeaders = new List<DataHeader>();
+            var chunkHeaders = new List<PayloadHeader>();
+            var keyframeHeaders = new List<PayloadHeader>();
             var buffer = new byte[10];
 
-            for(var k = 0; k < header.chunkCount; k++)
+            for (var k = 0; k < header.chunkCount; k++)
             {
-                fs.Read(buffer);
-                chunkHeaders.Add(new DataHeader() 
-                {
-                    id = BitConverter.ToUInt16(buffer[..2]),
-                    size = BitConverter.ToUInt32(buffer[2..6]),
-                    offset = BitConverter.ToUInt32(buffer[6..])
-                });
+
+                await fs.ReadAsync(buffer);
+                chunkHeaders.Add(PayloadHeader.FromBytes(buffer));
             }
 
             for (var k = 0; k < header.keyframeCount; k++)
             {
-                fs.Read(buffer);
-                keyframeHeaders.Add(new DataHeader()
-                {
-                    id = BitConverter.ToUInt16(buffer[..2]),
-                    size = BitConverter.ToUInt32(buffer[2..6]),
-                    offset = BitConverter.ToUInt32(buffer[6..])
-                });
+                await fs.ReadAsync(buffer);
+                keyframeHeaders.Add(PayloadHeader.FromBytes(buffer));
             }
             return (chunkHeaders, keyframeHeaders);
         }
 
-        internal static async Task PackReplay(Replay replay, string outpath)
+        internal static async Task PackReplay(Replay replay, string outpath, bool overwrite = false)
         {
-            var dir = Directory.GetParent(outpath);
-            Directory.CreateDirectory(dir.FullName);
-            var fs = new FileStream(@$"{outpath}.lsrp", FileMode.CreateNew);
-            await fs.WriteAsync(new byte[4] { 0x4C, 0x53, 0x52, 0x50 }); // LSRP
 
-            var headers = PackHeaders(replay);
             var chunkData = PackChunkData(replay.Chunks);
             var keyframeData = PackKeyframeData(replay.KeyFrames);
+            var headers = PackHeaders(replay);
 
             await Task.WhenAll(headers, chunkData, keyframeData);
 
-            await fs.WriteAsync(headers.Result);
-            await fs.WriteAsync(chunkData.Result);
-            await fs.WriteAsync(keyframeData.Result);
+            var dir = Directory.GetParent(outpath);
+            Directory.CreateDirectory(dir.FullName);
+
+            if (overwrite)
+                File.Delete(@$"{outpath}.lsrp");
+
+            using (var fs = new FileStream(@$"{outpath}.lsrp", FileMode.CreateNew))
+            {
+                await fs.WriteAsync(new byte[4] { 0x4C, 0x53, 0x52, 0x50 }); // LSRP
+
+                await fs.WriteAsync(headers.Result);
+                await fs.WriteAsync(chunkData.Result);
+                await fs.WriteAsync(keyframeData.Result);
+            }
         }
 
         private static async Task<byte[]> PackHeaders(Replay replay)
         {
             var memStream = new MemoryStream();
 
-            var keyLength = (ushort)Encoding.ASCII.GetByteCount(replay.eKey);
-            var headerLength = (ushort)(keyLength + 40);
-            var chunkHeaderLength = (ushort)(headerLength + (replay.Chunks.Count * 10));
-            var keyframeHeaderLength = (ushort)(headerLength + chunkHeaderLength + (replay.KeyFrames.Count * 10));
+            var keyLength = (byte)Encoding.UTF8.GetByteCount(replay.eKey);
+            var headerLength = (ushort)(keyLength + 34);
+            var chunkHeaderLength = (ushort)(replay.Chunks.Count * 10);
+            var keyframeHeaderLength = (ushort)(replay.KeyFrames.Count * 10);
 
-            await memStream.WriteAsync(StructToBytes(new Header()
+            await memStream.WriteAsync(new Header()
             {
                 chunkCount = (ushort)replay.Chunks.Count,
                 keyframeCount = (ushort)replay.KeyFrames.Count,
-                gameId = replay.GameId,
-                region = (ushort) replay.Region,
-                endStartupChunkId = (ushort)replay.ChunkInfo.endStartupChunkId,
-                startGameChunkId = (ushort)replay.ChunkInfo.startGameChunkId,
-                endGameChunkId = (ushort)replay.ChunkInfo.endGameChunkId,
+                gameId = replay.GameKey.GameId,
+                region = (byte)replay.GameKey.PlatformId,
+                endStartupChunkId = (ushort)replay.ChunkInfo.EndStartupChunkId,
+                startGameChunkId = (ushort)replay.ChunkInfo.StartGameChunkId,
+                endGameChunkId = (ushort)replay.ChunkInfo.EndGameChunkId,
                 encryptionKey = replay.eKey,
                 encryptionKeyLength = keyLength,
                 headerLength = headerLength,
@@ -183,46 +158,46 @@ namespace LeagueReplayLibrary
                 keyframekHeaderLength = keyframeHeaderLength,
                 chunkHeaderOffset = headerLength,
                 keyframeHeaderOffset = (ushort)(chunkHeaderLength + headerLength)
-            }));
+            }.ToBytes());
 
             uint pos = 0;
             foreach (var chunk in replay.Chunks)
             {
                 var chunkLength = (uint)chunk.data.Length;
-                await memStream.WriteAsync(StructToBytes(new DataHeader()
+                await memStream.WriteAsync(new PayloadHeader()
                 {
                     id = chunk.id,
                     size = (uint)chunk.data.Length,
-                    offset = (uint)(headerLength + chunkHeaderLength + keyframeHeaderLength + pos)
-                }));
+                    offset = (uint)(headerLength + chunkHeaderLength + keyframeHeaderLength + pos + 4)
+                }.ToBytes());
                 pos += chunkLength;
             }
 
             foreach (var keyframe in replay.KeyFrames)
             {
                 var keyframeLength = (uint)keyframe.data.Length;
-                await memStream.WriteAsync(StructToBytes(new DataHeader()
+                await memStream.WriteAsync(new PayloadHeader()
                 {
                     id = keyframe.id,
                     size = (uint)keyframe.data.Length,
-                    offset = (uint)(headerLength + chunkHeaderLength + keyframeHeaderLength + pos)
-                }));
+                    offset = (uint)(headerLength + chunkHeaderLength + keyframeHeaderLength + pos + 4)
+                }.ToBytes());
                 pos += keyframeLength;
             }
 
             return memStream.ToArray();
         }
 
-        private static async Task<byte[]> PackChunkData(List<Chunk> chunks)
+        private static async Task<byte[]> PackChunkData(List<Payload> chunks)
         {
             var memStream = new MemoryStream();
-            foreach(var chunk in chunks)
+            foreach (var chunk in chunks)
                 await memStream.WriteAsync(chunk.data);
 
             return memStream.ToArray();
         }
 
-        private static async Task<byte[]> PackKeyframeData(List<Keyframe> keyframes)
+        private static async Task<byte[]> PackKeyframeData(List<Payload> keyframes)
         {
             var memStream = new MemoryStream();
             foreach (var keyframe in keyframes)
