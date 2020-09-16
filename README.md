@@ -1,5 +1,5 @@
 # League Spectator Replay
-This library allows for an easy way of packing spectator data gathered  from the league specatator endpoint, into League Spectator Replay files (.lsrp). The library targets .NET Standard 2.1
+This library allows for an easy way of packing spectator data gathered  from the league spectator endpoint, into League Spectator Replay files (.lsrp). The library targets .NET Standard 2.1
 
 #### NOTE: The spectator endpoint doesnt keep the Chunks/Keyframes for long, so make sure the game has recently started (4-5 minutes ago), to avoid data loss.
 
